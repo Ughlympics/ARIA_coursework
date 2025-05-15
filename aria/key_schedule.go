@@ -1,8 +1,11 @@
 package aria
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
-//SL1
+// SL1
 func substitution1(x [16]byte) (y [16]byte) {
 	y[0] = sb1[x[0]]
 	y[1] = sb2[x[1]]
@@ -23,7 +26,7 @@ func substitution1(x [16]byte) (y [16]byte) {
 	return
 }
 
-//SL2
+// SL2
 func substitution2(x [16]byte) (y [16]byte) {
 	y[0] = sb3[x[0]]
 	y[1] = sb4[x[1]]
@@ -44,7 +47,7 @@ func substitution2(x [16]byte) (y [16]byte) {
 	return
 }
 
-//DL
+// DL
 func diffusion(x [16]byte) (y [16]byte) {
 	y[0] = x[3] ^ x[4] ^ x[6] ^ x[8] ^ x[9] ^ x[13] ^ x[14]
 	y[1] = x[2] ^ x[5] ^ x[7] ^ x[8] ^ x[9] ^ x[12] ^ x[15]
@@ -118,6 +121,7 @@ func toBytes(u []uint32) (r [16]byte) {
 
 func (c *Aria) expandKey(key []byte) error {
 	n := c.rounds()
+	fmt.Printf("size: %d\n", c.size)
 
 	var kl, kr [16]byte
 
