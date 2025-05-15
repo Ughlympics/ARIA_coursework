@@ -1,5 +1,7 @@
 package aria
 
+import "encoding/binary"
+
 //SL1
 func substitution1(x [16]byte) (y [16]byte) {
 	y[0] = sb1[x[0]]
@@ -98,4 +100,86 @@ func rrotate(x [16]byte, n uint) (y [16]byte) {
 		y[i] = a>>r | b<<s
 	}
 	return
+}
+
+func copyBytes(xk []uint32, x [16]byte) {
+	for i := 0; i < 4; i++ {
+		xk[i] = binary.BigEndian.Uint32(x[i*4 : (i+1)*4])
+	}
+}
+
+func toBytes(u []uint32) (r [16]byte) {
+	binary.BigEndian.PutUint32(r[0:4], u[0])
+	binary.BigEndian.PutUint32(r[4:8], u[1])
+	binary.BigEndian.PutUint32(r[8:12], u[2])
+	binary.BigEndian.PutUint32(r[12:16], u[3])
+	return
+}
+
+func (c *Aria) expandKey(key []byte) error {
+	n := c.rounds()
+
+	var kl, kr [16]byte
+
+	copy(kl[:], key[:min(c.size, 16)])
+	if c.size > 16 {
+		copy(kr[:], key[16:c.size])
+	}
+
+	var ck1, ck2, ck3 [16]byte
+
+	if c.size == 16 { // 128
+		ck1 = c1
+		ck2 = c2
+		ck3 = c3
+	} else if c.size == 24 { // 192
+		ck1 = c2
+		ck2 = c3
+		ck3 = c1
+	} else if c.size == 32 { // 256
+		ck1 = c3
+		ck2 = c1
+		ck3 = c2
+	} else {
+		panic("aria: unsupported key size")
+	}
+
+	var w0, w1, w2, w3 [16]byte
+
+	w0 = kl
+	w1 = xor(fo(w0, ck1), kr)
+	w2 = xor(fe(w1, ck2), w0)
+	w3 = xor(fo(w2, ck3), w1)
+
+	copyBytes(c.encKeys, xor(w0, rrotate(w1, 19)))
+	copyBytes(c.encKeys[4:], xor(w1, rrotate(w2, 19)))
+	copyBytes(c.encKeys[8:], xor(w2, rrotate(w3, 19)))
+	copyBytes(c.encKeys[12:], xor(w3, rrotate(w0, 19)))
+	copyBytes(c.encKeys[16:], xor(w0, rrotate(w1, 31)))
+	copyBytes(c.encKeys[20:], xor(w1, rrotate(w2, 31)))
+	copyBytes(c.encKeys[24:], xor(w2, rrotate(w3, 31)))
+	copyBytes(c.encKeys[28:], xor(w3, rrotate(w0, 31)))
+	copyBytes(c.encKeys[32:], xor(w0, lrotate(w1, 61)))
+	copyBytes(c.encKeys[36:], xor(w1, lrotate(w2, 61)))
+	copyBytes(c.encKeys[40:], xor(w2, lrotate(w3, 61)))
+	copyBytes(c.encKeys[44:], xor(w3, lrotate(w0, 61)))
+	copyBytes(c.encKeys[48:], xor(w0, lrotate(w1, 31)))
+	if n > 12 {
+		copyBytes(c.encKeys[52:], xor(w1, lrotate(w2, 31)))
+		copyBytes(c.encKeys[56:], xor(w2, lrotate(w3, 31)))
+	}
+	if n > 14 {
+		copyBytes(c.encKeys[60:], xor(w3, lrotate(w0, 31)))
+		copyBytes(c.encKeys[64:], xor(w0, lrotate(w1, 19)))
+	}
+
+	copy(c.decKeys, c.encKeys[n*4:(n+1)*4])
+
+	for i := 1; i <= n-1; i++ {
+		t := diffusion(toBytes(c.encKeys[(n-i)*4 : (n-i+1)*4]))
+		copyBytes(c.decKeys[i*4:], t)
+	}
+
+	copy(c.decKeys[n*4:], c.encKeys[:4])
+	return nil
 }
