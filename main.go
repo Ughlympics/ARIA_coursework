@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -10,88 +11,134 @@ import (
 	"sym_crypt_course_work/aria"
 )
 
+// func main() {
+
+// 	reader := bufio.NewReader(os.Stdin)
+
+// 	fmt.Println("Hi! Welcome into ARIA cypher utility.")
+// 	fmt.Println("Choose option:")
+// 	printMenu()
+
+// 	for {
+// 		input, _ := reader.ReadString('\n')
+// 		input = strings.TrimSpace(input)
+
+// 		switch input {
+// 		case "1":
+// 			describeProgram()
+// 		case "2":
+// 			showDirectoryFiles()
+// 		case "3":
+// 			encryptFile()
+// 		case "4":
+// 			decryptFile()
+// 		case "5":
+// 			printMenu()
+// 		case "0":
+// 			fmt.Println("Bye bye.")
+// 			return
+// 		default:
+// 			fmt.Println("Choose something else or exit.")
+// 		}
+
+// 		fmt.Println()
+// 	}
+// }
+
+// func printMenu() {
+// 	fmt.Println("1 - Description of the program")
+// 	fmt.Println("2 - Show directory files")
+// 	fmt.Println("3 - Encrypt .txt file")
+// 	fmt.Println("4 - Decrypt .txt file")
+// 	fmt.Println("5 - Help")
+// 	fmt.Println("0 - Exit")
+// }
+
+// func describeProgram() {
+// 	fmt.Println("ARIA — is a block cipher developed in South Korea.")
+// 	fmt.Println("Supports 128, 192 and 256 bit keys. Used to protect data.")
+// 	fmt.Println("The program allows you to encrypt and decrypt .txt files using the ARIA algorithm.")
+// 	fmt.Println()
+// 	fmt.Println("Operating Principle:")
+// 	fmt.Println("  In the same directory as the executable, you must have three .txt files:")
+// 	fmt.Println("    • plaintext.txt   – contains the data to encrypt (16‑byte blocks separated by spaces)")
+// 	fmt.Println("    • keys.txt        – either a single key for all blocks,")
+// 	fmt.Println("                        or one key per block (matching the number of plaintext blocks)")
+// 	fmt.Println("    • ciphertext.txt  – will receive the encrypted output")
+// 	fmt.Println()
+// 	fmt.Println("File Requirements:")
+// 	fmt.Println("  • Plaintext is split into 16‑byte blocks, each block separated by a single space.")
+// 	fmt.Println("  • Keys file may contain:")
+// 	fmt.Println("      – One key, applied to all blocks,")
+// 	fmt.Println("      – Or N keys for N blocks, so each block is encrypted independently.")
+// 	fmt.Println()
+// 	fmt.Println("Press 5 to get menu")
+
+// }
+
+// func showDirectoryFiles() {
+// 	files, err := os.ReadDir(".")
+// 	if err != nil {
+// 		fmt.Println("Ups, you should read desription :)", err)
+// 		return
+// 	}
+
+// 	fmt.Println(" .txt files in main directory:")
+// 	found := false
+// 	for _, file := range files {
+// 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".txt") {
+// 			fmt.Println(" -", file.Name())
+// 			found = true
+// 		}
+// 	}
+
+// 	if !found {
+// 		fmt.Println("No .txt files.")
+// 	}
+// }
+
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	keyHex := "000102030405060708090a0b0c0d0e0f"
+	plaintextHex := "00112233445566778899aabbccddeeff"
+	expectedCipherHex := "d718fbd6ab644c739da95f3be6451778"
 
-	fmt.Println("Hi! Welcome into ARIA cypher utility.")
-	fmt.Println("Choose option:")
-	printMenu()
+	// Конвертация hex-строк в []byte
+	key, _ := hex.DecodeString(keyHex)
+	plaintext, _ := hex.DecodeString(plaintextHex)
+	expectedCipher, _ := hex.DecodeString(expectedCipherHex)
 
-	for {
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		switch input {
-		case "1":
-			describeProgram()
-		case "2":
-			showDirectoryFiles()
-		case "3":
-			encryptFile()
-		case "4":
-			decryptFile()
-		case "5":
-			printMenu()
-		case "0":
-			fmt.Println("Bye bye.")
-			return
-		default:
-			fmt.Println("Choose something else or exit.")
-		}
-
-		fmt.Println()
-	}
-}
-
-func printMenu() {
-	fmt.Println("1 - Description of the program")
-	fmt.Println("2 - Show directory files")
-	fmt.Println("3 - Encrypt .txt file")
-	fmt.Println("4 - Decrypt .txt file")
-	fmt.Println("5 - Help")
-	fmt.Println("0 - Exit")
-}
-
-func describeProgram() {
-	fmt.Println("ARIA — is a block cipher developed in South Korea.")
-	fmt.Println("Supports 128, 192 and 256 bit keys. Used to protect data.")
-	fmt.Println("The program allows you to encrypt and decrypt .txt files using the ARIA algorithm.")
-	fmt.Println()
-	fmt.Println("Operating Principle:")
-	fmt.Println("  In the same directory as the executable, you must have three .txt files:")
-	fmt.Println("    • plaintext.txt   – contains the data to encrypt (16‑byte blocks separated by spaces)")
-	fmt.Println("    • keys.txt        – either a single key for all blocks,")
-	fmt.Println("                        or one key per block (matching the number of plaintext blocks)")
-	fmt.Println("    • ciphertext.txt  – will receive the encrypted output")
-	fmt.Println()
-	fmt.Println("File Requirements:")
-	fmt.Println("  • Plaintext is split into 16‑byte blocks, each block separated by a single space.")
-	fmt.Println("  • Keys file may contain:")
-	fmt.Println("      – One key, applied to all blocks,")
-	fmt.Println("      – Or N keys for N blocks, so each block is encrypted independently.")
-	fmt.Println()
-	fmt.Println("Press 5 to get menu")
-
-}
-
-func showDirectoryFiles() {
-	files, err := os.ReadDir(".")
+	// Создание блока ARIA
+	block, err := aria.NewAria(key)
 	if err != nil {
-		fmt.Println("Ups, you should read desription :)", err)
-		return
+		panic(err)
 	}
 
-	fmt.Println(" .txt files in main directory:")
-	found := false
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".txt") {
-			fmt.Println(" -", file.Name())
-			found = true
-		}
+	// Шифрование
+	ciphertext := make([]byte, 16)
+	block.Encrypt(ciphertext, plaintext)
+
+	// Расшифровка
+	decrypted := make([]byte, 16)
+	block.Decrypt(decrypted, ciphertext)
+
+	// Вывод результатов
+	fmt.Printf("Key         : %x\n", key)
+	fmt.Printf("Plaintext   : %x\n", plaintext)
+	fmt.Printf("Ciphertext  : %x\n", ciphertext)
+	fmt.Printf("Expected    : %x\n", expectedCipher)
+	fmt.Printf("Decrypted   : %x\n", decrypted)
+
+	// Проверка совпадений
+	if hex.EncodeToString(ciphertext) == expectedCipherHex {
+		fmt.Println("Encryption successful: matches expected.")
+	} else {
+		fmt.Println("Encryption failed: doesn't match expected.")
 	}
 
-	if !found {
-		fmt.Println("No .txt files.")
+	if string(decrypted) == string(plaintext) {
+		fmt.Println("Decryption successful.")
+	} else {
+		fmt.Println("Decryption failed.")
 	}
 }
 
