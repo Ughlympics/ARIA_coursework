@@ -73,14 +73,14 @@ var SB4 = [256]byte{
 	0x25, 0x8a, 0xb5, 0xe7, 0x42, 0xb3, 0xc7, 0xea, 0xf7, 0x4c, 0x11, 0x33, 0x03, 0xa2, 0xac, 0x60,
 }
 
-var c1 = [16]byte{
-	0x51, 0x7c, 0xc1, 0xb7, 0x27, 0x22, 0x0a, 0x94, 0xfe, 0x13, 0xab, 0xe8, 0xfa, 0x9a, 0x6e, 0xe0,
+var c1 = [4]uint32{
+	0x517cc1b7, 0x27220a94, 0xfe13abe8, 0xfa9a6ee0,
 }
-var c2 = [16]byte{
-	0x6d, 0xb1, 0x4a, 0xcc, 0x9e, 0x21, 0xc8, 0x20, 0xff, 0x28, 0xb1, 0xd5, 0xef, 0x5d, 0xe2, 0xb0,
+var c2 = [4]uint32{
+	0x6db14acc, 0x9e21c820, 0xff28b1d5, 0xef5de2b0,
 }
-var c3 = [16]byte{
-	0xdb, 0x92, 0x37, 0x1d, 0x21, 0x26, 0xe9, 0x70, 0x03, 0x24, 0x97, 0x75, 0x04, 0xe8, 0xc9, 0x0e,
+var c3 = [4]uint32{
+	0xdb92371d, 0x2126e970, 0x03249775, 0x04e8c90e,
 }
 
 type Aria struct {
@@ -169,4 +169,140 @@ func SL2(x [16]byte) [16]byte {
 	y[11] = SB2[x[11]]
 	y[15] = SB2[x[15]]
 	return y
+}
+
+func keySchedule(key []uint32) []uint32 {
+	var masterKey []uint32
+	masterKey = append(masterKey, key...)
+	var ck1, ck2, ck3 [4]uint32
+
+	switch len(key) {
+	case 4:
+		masterKey = append(masterKey, make([]uint32, 4)...)
+		ck1 = c1
+		ck2 = c2
+		ck3 = c3
+	case 6:
+		masterKey = append(masterKey, make([]uint32, 2)...)
+		ck1 = c2
+		ck2 = c3
+		ck3 = c1
+	case 8:
+		ck1 = c3
+		ck2 = c1
+		ck3 = c2
+		break
+	default:
+		panic("Invalid key length for ARIA cipher")
+	}
+
+	slice := masterKey[4:8]
+	KR := [4]uint32{slice[0], slice[1], slice[2], slice[3]}
+
+	var W0 [4]uint32
+	W0 = [4]uint32(masterKey)
+	W1 := xorUint32Slices(FO(W0, ck1), KR)
+	W2 := xorUint32Slices(FE(W1, ck2), W0)
+	W3 := xorUint32Slices(FO(W2, ck3), W1)
+
+	return roundKeys
+}
+
+func FO(d [4]uint32, k [4]uint32) [4]uint32 {
+	temp := xorUint32Slices(d, k)
+	res := A(SL1(uint32SliceToUint8(temp)))
+	result := uint8Array16ToUint32(res)
+	return result
+}
+
+func FE(d [4]uint32, k [4]uint32) [4]uint32 {
+	temp := xorUint32Slices(d, k)
+	res := A(SL2(uint32SliceToUint8(temp)))
+	result := uint8Array16ToUint32(res)
+	return result
+}
+
+func uint32SliceToUint8(input [4]uint32) [16]byte {
+	var output [16]byte
+	j := 0
+	for _, word := range input {
+		output[j] = byte(word >> 24)
+		output[j+1] = byte(word >> 16)
+		output[j+2] = byte(word >> 8)
+		output[j+3] = byte(word)
+		j += 4
+	}
+	return output
+}
+
+func xorUint32Slices(a, b [4]uint32) [4]uint32 {
+	if len(a) != len(b) {
+		panic("slices must be the same length")
+	}
+
+	var result [4]uint32
+	for i := range a {
+		result[i] = a[i] ^ b[i]
+	}
+	return result
+}
+
+func xorBytes(a, b [16]byte) []byte {
+	if len(a) != len(b) {
+		panic("xorBytes: slices must be of equal length")
+	}
+	result := make([]byte, len(a))
+	for i := 0; i < len(a); i++ {
+		result[i] = a[i] ^ b[i]
+	}
+	return result
+}
+
+func uint8Array16ToUint32(input [16]byte) [4]uint32 {
+	var output [4]uint32
+	for i := 0; i < 4; i++ {
+		output[i] = uint32(input[i*4])<<24 |
+			uint32(input[i*4+1])<<16 |
+			uint32(input[i*4+2])<<8 |
+			uint32(input[i*4+3])
+	}
+	return output
+}
+
+func lrot128(x [4]uint32, n uint) (y [4]uint32) {
+	n = n % 128
+	if n == 0 {
+		return x
+	}
+
+	q := n / 32
+	r := n % 32
+	s := 32 - r
+
+	for i := 0; i < 4; i++ {
+		a := x[(int(q)+i)%4]
+		b := x[(int(q)+i+1)%4]
+		y[i] = (a << r) | (b >> s)
+	}
+
+	return
+}
+
+func rrot128(x [4]uint32, n uint) (y [4]uint32) {
+	n = n % 128
+	if n == 0 {
+		return x
+	}
+
+	q := n / 32
+	r := n % 32
+	s := 32 - r
+
+	for i := 0; i < 4; i++ {
+		a := x[(4+int(i)-int(q))%4]
+		b := x[(4+int(i)-int(q)-1)%4]
+		y[i] = (a >> r) | (b << s)
+	}
+
+	return
 }
