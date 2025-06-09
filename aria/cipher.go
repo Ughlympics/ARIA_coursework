@@ -85,7 +85,7 @@ var c3 = [4]uint32{
 
 type Aria struct {
 	numrouds  int
-	roundKeys []uint32
+	RoundKeys []uint32
 }
 
 func NewAria(key []uint32) *Aria {
@@ -101,8 +101,11 @@ func NewAria(key []uint32) *Aria {
 		panic("Invalid key length for ARIA cipher")
 	}
 
+	roundKeys := keySchedule(key)
+
 	aria := Aria{
-		numrouds: r,
+		numrouds:  r,
+		RoundKeys: roundKeys,
 	}
 
 	return &aria
@@ -204,6 +207,34 @@ func keySchedule(key []uint32) []uint32 {
 	W1 := xorUint32Slices(FO(W0, ck1), KR)
 	W2 := xorUint32Slices(FE(W1, ck2), W0)
 	W3 := xorUint32Slices(FO(W2, ck3), W1)
+
+	ek1 := xorUint32Slices(W0, rrot128(W1, 19))
+	ek2 := xorUint32Slices(W1, rrot128(W2, 19))
+	ek3 := xorUint32Slices(W2, rrot128(W3, 19))
+	ek4 := xorUint32Slices(rrot128(W0, 19), W3)
+	ek5 := xorUint32Slices(W0, rrot128(W1, 31))
+	ek6 := xorUint32Slices(W1, rrot128(W2, 31))
+	ek7 := xorUint32Slices(W2, rrot128(W3, 31))
+	ek8 := xorUint32Slices(rrot128(W0, 31), W3)
+	ek9 := xorUint32Slices(W0, lrot128(W1, 61))
+	ek10 := xorUint32Slices(W1, lrot128(W2, 61))
+	ek11 := xorUint32Slices(W2, lrot128(W3, 61))
+	ek12 := xorUint32Slices(lrot128(W0, 61), W3)
+	ek13 := xorUint32Slices(W0, lrot128(W1, 31))
+	ek14 := xorUint32Slices(W1, lrot128(W2, 31))
+	ek15 := xorUint32Slices(W2, lrot128(W3, 31))
+	ek16 := xorUint32Slices(lrot128(W0, 31), W3)
+	ek17 := xorUint32Slices(W0, lrot128(W1, 19))
+
+	allEk := [17][4]uint32{
+		ek1, ek2, ek3, ek4, ek5, ek6, ek7, ek8, ek9,
+		ek10, ek11, ek12, ek13, ek14, ek15, ek16, ek17,
+	}
+
+	roundKeys := make([]uint32, 0, 17*4)
+	for _, ek := range allEk {
+		roundKeys = append(roundKeys, ek[:]...)
+	}
 
 	return roundKeys
 }
