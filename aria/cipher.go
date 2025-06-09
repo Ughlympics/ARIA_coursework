@@ -194,7 +194,6 @@ func keySchedule(key []uint32) []uint32 {
 		ck1 = c3
 		ck2 = c1
 		ck3 = c2
-		break
 	default:
 		panic("Invalid key length for ARIA cipher")
 	}
@@ -278,17 +277,6 @@ func xorUint32Slices(a, b [4]uint32) [4]uint32 {
 	return result
 }
 
-func xorBytes(a, b [16]byte) []byte {
-	if len(a) != len(b) {
-		panic("xorBytes: slices must be of equal length")
-	}
-	result := make([]byte, len(a))
-	for i := 0; i < len(a); i++ {
-		result[i] = a[i] ^ b[i]
-	}
-	return result
-}
-
 func uint8Array16ToUint32(input [16]byte) [4]uint32 {
 	var output [4]uint32
 	for i := 0; i < 4; i++ {
@@ -336,4 +324,115 @@ func rrot128(x [4]uint32, n uint) (y [4]uint32) {
 	}
 
 	return
+}
+
+func (a *Aria) Encrypt(aria *Aria, p [4]uint32) [4]uint32 {
+	p1 := FO(p, toArray4(aria.RoundKeys[0:4]))
+	p2 := FE(p1, toArray4(aria.RoundKeys[4:8]))
+	p3 := FO(p2, toArray4(aria.RoundKeys[8:12]))
+	p4 := FE(p3, toArray4(aria.RoundKeys[12:16]))
+	p5 := FO(p4, toArray4(aria.RoundKeys[16:20]))
+	p6 := FE(p5, toArray4(aria.RoundKeys[20:24]))
+	p7 := FO(p6, toArray4(aria.RoundKeys[24:28]))
+	p8 := FE(p7, toArray4(aria.RoundKeys[28:32]))
+	p9 := FO(p8, toArray4(aria.RoundKeys[32:36]))
+	p10 := FE(p9, toArray4(aria.RoundKeys[36:40]))
+	p11 := FO(p10, toArray4(aria.RoundKeys[40:44]))
+	if aria.numrouds == 12 {
+		p12 := xorUint32Slices(p11, toArray4(aria.RoundKeys[44:48]))
+		temp := SL2(uint32SliceToUint8(p12))
+		C := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(aria.RoundKeys[48:52]))
+		return C
+	}
+	if aria.numrouds == 14 {
+		p12 := FE(p11, toArray4(aria.RoundKeys[44:48]))
+		p13 := FO(p12, toArray4(aria.RoundKeys[48:52]))
+		p14 := xorUint32Slices(p13, toArray4(aria.RoundKeys[52:56]))
+		temp := SL2(uint32SliceToUint8(p14))
+		C := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(aria.RoundKeys[56:60]))
+		return C
+	}
+	if aria.numrouds == 16 {
+		p12 := FE(p11, toArray4(aria.RoundKeys[44:48]))
+		p13 := FO(p12, toArray4(aria.RoundKeys[48:52]))
+		p14 := FE(p13, toArray4(aria.RoundKeys[52:56]))
+		p15 := FO(p14, toArray4(aria.RoundKeys[56:60]))
+		p16 := xorUint32Slices(p15, toArray4(aria.RoundKeys[60:64]))
+		temp := SL2(uint32SliceToUint8(p16))
+		C := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(aria.RoundKeys[64:68]))
+		return C
+	}
+
+	return p
+}
+
+func toArray4(in []uint32) [4]uint32 {
+	if len(in) < 4 {
+		panic("slice too short for [4]uint32")
+	}
+	var out [4]uint32
+	copy(out[:], in[:4])
+	return out
+}
+
+func (a *Aria) Decrypt(c [4]uint32) [4]uint32 {
+	deckeys := generateDecryptionKeys(a.RoundKeys, a.numrouds)
+
+	p1 := FO(c, toArray4(deckeys[0:4]))
+	p2 := FE(p1, toArray4(deckeys[4:8]))
+	p3 := FO(p2, toArray4(deckeys[8:12]))
+	p4 := FE(p3, toArray4(deckeys[12:16]))
+	p5 := FO(p4, toArray4(deckeys[16:20]))
+	p6 := FE(p5, toArray4(deckeys[20:24]))
+	p7 := FO(p6, toArray4(deckeys[24:28]))
+	p8 := FE(p7, toArray4(deckeys[28:32]))
+	p9 := FO(p8, toArray4(deckeys[32:36]))
+	p10 := FE(p9, toArray4(deckeys[36:40]))
+	p11 := FO(p10, toArray4(deckeys[40:44]))
+	if a.numrouds == 12 {
+		p12 := xorUint32Slices(p11, toArray4(deckeys[44:48]))
+		temp := SL2(uint32SliceToUint8(p12))
+		plaintext := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(deckeys[48:52]))
+		return plaintext
+	}
+	if a.numrouds == 14 {
+		p12 := FE(p11, toArray4(deckeys[44:48]))
+		p13 := FO(p12, toArray4(deckeys[48:52]))
+		p14 := xorUint32Slices(p13, toArray4(deckeys[52:56]))
+		temp := SL2(uint32SliceToUint8(p14))
+		plaintext := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(deckeys[56:60]))
+		return plaintext
+	}
+	if a.numrouds == 16 {
+		p12 := FE(p11, toArray4(deckeys[44:48]))
+		p13 := FO(p12, toArray4(deckeys[48:52]))
+		p14 := FE(p13, toArray4(deckeys[52:56]))
+		p15 := FO(p14, toArray4(deckeys[56:60]))
+		p16 := xorUint32Slices(p15, toArray4(deckeys[60:64]))
+		temp := SL2(uint32SliceToUint8(p16))
+		plaintext := xorUint32Slices(uint8Array16ToUint32(temp), toArray4(deckeys[64:68]))
+		return plaintext
+	}
+
+	return c
+}
+
+func generateDecryptionKeys(encryptionKeys []uint32, rounds int) []uint32 {
+	if len(encryptionKeys) < (rounds+1)*4 {
+		panic("encryptionKeys is too short for the specified number of rounds")
+	}
+
+	decryptionKeys := make([]uint32, 0, len(encryptionKeys))
+
+	decryptionKeys = append(decryptionKeys, encryptionKeys[rounds*4:(rounds+1)*4]...)
+
+	for i := rounds - 1; i >= 1; i-- {
+		block := toArray4(encryptionKeys[i*4 : (i+1)*4])
+		transformed := uint8Array16ToUint32(A(uint32SliceToUint8(block)))
+		decryptionKeys = append(decryptionKeys, transformed[:]...)
+	}
+
+	decryptionKeys = append(decryptionKeys, encryptionKeys[0:4]...)
+
+	return decryptionKeys
 }
