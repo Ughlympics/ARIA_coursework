@@ -88,7 +88,7 @@ type Aria struct {
 	roundKeys []uint32
 }
 
-func NewAria(key []uint) *Aria {
+func NewAria(key []uint32) *Aria {
 	var r int
 	switch len(key) {
 	case 4:
